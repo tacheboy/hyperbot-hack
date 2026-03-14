@@ -54,7 +54,7 @@ class HyperAPIClient:
         self.base_url = (
             base_url
             or os.environ.get("HYPERAPI_URL")
-            or "https://apis.hyperbots.com"
+            or "https://api.hyperapi.dev"
         )
         self.timeout = timeout
         self._client = httpx.Client(timeout=timeout)
@@ -104,7 +104,7 @@ class HyperAPIClient:
             with open(image_path, "rb") as f:
                 files = {"file": (image_path.name, f, content_type)}
                 response = self._client.post(
-                    f"{self.base_url}/api/v1/parse",
+                    f"{self.base_url}/v1/parse",
                     files=files,
                     headers=self._get_headers()
                 )
@@ -120,27 +120,18 @@ class HyperAPIClient:
 
             data = response.json()
             
-            # Handle various response formats
-            # Format 1: {"ocr": "text"}
-            if "ocr" in data:
-                return {"ocr": data["ocr"]}
-            # Format 2: {"result": {"ocr": "text"}}
-            elif "result" in data and isinstance(data["result"], dict):
-                if "ocr" in data["result"]:
-                    return {"ocr": data["result"]["ocr"]}
-                elif "text" in data["result"]:
-                    return {"ocr": data["result"]["text"]}
-            # Format 3: {"text": "text"}
-            elif "text" in data:
-                return {"ocr": data["text"]}
-            # Format 4: {"data": {"ocr": "text"}}
-            elif "data" in data and isinstance(data["data"], dict):
-                if "ocr" in data["data"]:
-                    return {"ocr": data["data"]["ocr"]}
-                elif "text" in data["data"]:
-                    return {"ocr": data["data"]["text"]}
+            # API returns: {"status": "success", "result": {"ocr": "..."}}
+            if data.get("status") == "success" and "result" in data:
+                result = data["result"]
+                if "ocr" in result:
+                    return {"ocr": result["ocr"]}
             
-            # If we can't find OCR text, raise error
+            # Fallback for other formats
+            if "result" in data and "ocr" in data["result"]:
+                return {"ocr": data["result"]["ocr"]}
+            elif "ocr" in data:
+                return {"ocr": data["ocr"]}
+            
             raise ParseError(f"Unexpected response format: {data}")
 
         except httpx.TimeoutException:
@@ -189,7 +180,7 @@ class HyperAPIClient:
             with open(image_path, "rb") as f:
                 files = {"file": (image_path.name, f, content_type)}
                 response = self._client.post(
-                    f"{self.base_url}/api/v1/classify",
+                    f"{self.base_url}/v1/classify",
                     files=files,
                     headers=self._get_headers()
                 )
@@ -205,21 +196,19 @@ class HyperAPIClient:
 
             data = response.json()
             
-            # Handle various response formats
-            if "document_type" in data:
+            # API returns: {"status": "success", "result": {"label": "invoice", "confidence": 0.98}}
+            if data.get("status") == "success" and "result" in data:
+                result = data["result"]
                 return {
-                    "document_type": data["document_type"],
-                    "confidence": data.get("confidence", 1.0)
+                    "document_type": result.get("label", "unknown"),
+                    "confidence": result.get("confidence", 1.0)
                 }
-            elif "result" in data and isinstance(data["result"], dict):
+            
+            # Fallback
+            if "result" in data and "label" in data["result"]:
                 return {
-                    "document_type": data["result"].get("document_type", "unknown"),
+                    "document_type": data["result"]["label"],
                     "confidence": data["result"].get("confidence", 1.0)
-                }
-            elif "type" in data:
-                return {
-                    "document_type": data["type"],
-                    "confidence": data.get("confidence", 1.0)
                 }
             
             raise ClassifyError(f"Unexpected response format: {data}")
@@ -257,7 +246,7 @@ class HyperAPIClient:
             with open(pdf_path, "rb") as f:
                 files = {"file": (pdf_path.name, f, "application/pdf")}
                 response = self._client.post(
-                    f"{self.base_url}/api/v1/split",
+                    f"{self.base_url}/v1/split",
                     files=files,
                     headers=self._get_headers(),
                     timeout=300.0  # Splitting can take time for large PDFs
@@ -274,16 +263,19 @@ class HyperAPIClient:
 
             data = response.json()
             
-            # Handle various response formats
-            if "pages" in data or "sections" in data:
+            # API returns: {"status": "success", "result": {"segments": [...]}}
+            if data.get("status") == "success" and "result" in data:
+                result = data["result"]
                 return {
-                    "pages": data.get("pages", []),
-                    "sections": data.get("sections", [])
+                    "segments": result.get("segments", []),
+                    "pages": result.get("pages", [])
                 }
-            elif "result" in data and isinstance(data["result"], dict):
+            
+            # Fallback
+            if "result" in data and "segments" in data["result"]:
                 return {
-                    "pages": data["result"].get("pages", []),
-                    "sections": data["result"].get("sections", [])
+                    "segments": data["result"]["segments"],
+                    "pages": data["result"].get("pages", [])
                 }
             
             raise SplitError(f"Unexpected response format: {data}")
@@ -293,60 +285,68 @@ class HyperAPIClient:
         except httpx.RequestError as e:
             raise SplitError(f"Request failed: {str(e)}")
 
-    def process(self, image_path: Union[str, Path], doc_type: Optional[str] = None) -> dict:
+    def process(self, file_path: Union[str, Path]) -> dict:
         """
         Parse and extract in one call.
 
         Args:
-            image_path: Path to the document file
-            doc_type: Optional document type hint for better extraction
+            file_path: Path to the document file
 
         Returns:
             dict with keys:
                 - ocr: Raw OCR text
                 - data: Extracted structured fields
-                - validation_errors: List of validation errors
         """
-        parse_result = self.parse(image_path)
-        extract_result = self.extract(parse_result["ocr"], doc_type=doc_type)
+        parse_result = self.parse(file_path)
+        extract_result = self.extract(file_path)
 
         return {
             "ocr": parse_result["ocr"],
-            "data": extract_result["data"],
-            "validation_errors": extract_result.get("validation_errors", [])
+            "data": extract_result["data"]
         }
 
-    def extract(self, ocr_text: str, doc_type: Optional[str] = None) -> dict:
+    def extract(self, file_path: Union[str, Path]) -> dict:
         """
-        Extract structured fields from OCR text.
+        Extract structured fields from document file.
         
-        POST /api/v1/extract - Extract structured data fields from documents 
+        POST /v1/extract - Extract structured data fields from documents 
         using vision-language models for high accuracy.
 
         Args:
-            ocr_text: OCR text from parsed document (from parse() result)
-            doc_type: Optional document type hint (invoice, po, bank_statement, etc.)
+            file_path: Path to the document file (PDF, PNG, JPG)
 
         Returns:
             dict with keys:
-                - data: Extracted fields (invoice_number, date, line_items, etc.)
-                - validation_errors: List of validation errors (if any)
+                - entities: Extracted fields (invoice_number, date, vendor_name, etc.)
+                - line_items: List of line items with description, quantity, price, etc.
 
         Raises:
+            FileNotFoundError: If file doesn't exist
             AuthenticationError: If API key is invalid
             ExtractError: If extraction fails
         """
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        suffix = file_path.suffix.lower()
+        content_types = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".pdf": "application/pdf",
+        }
+        content_type = content_types.get(suffix, "application/octet-stream")
+
         try:
-            payload = {"text": ocr_text}
-            if doc_type:
-                payload["document_type"] = doc_type
-            
-            response = self._client.post(
-                f"{self.base_url}/api/v1/extract",
-                json=payload,
-                headers=self._get_headers(),
-                timeout=600.0  # LLM calls can take longer
-            )
+            with open(file_path, "rb") as f:
+                files = {"file": (file_path.name, f, content_type)}
+                response = self._client.post(
+                    f"{self.base_url}/v1/extract",
+                    files=files,
+                    headers=self._get_headers(),
+                    timeout=600.0  # LLM calls can take longer
+                )
 
             if response.status_code == 401:
                 raise AuthenticationError("Invalid API key", status_code=401)
@@ -359,29 +359,24 @@ class HyperAPIClient:
 
             data = response.json()
             
-            # Handle various response formats
-            # Format 1: {"data": {...}, "validation_errors": [...]}
-            if "data" in data:
-                return {
-                    "data": data["data"],
-                    "validation_errors": data.get("validation_errors", [])
-                }
-            # Format 2: {"result": {...}}
-            elif "result" in data:
+            # API returns: {"status": "success", "result": {"entities": {...}, "line_items": [...]}}
+            if data.get("status") == "success" and "result" in data:
                 result = data["result"]
-                if isinstance(result, dict):
-                    return {
-                        "data": result,
-                        "validation_errors": data.get("validation_errors", [])
-                    }
-            # Format 3: Direct fields
-            elif any(key in data for key in ["invoice_number", "vendor_name", "total", "line_items"]):
+                # Flatten entities and line_items into a single dict
+                extracted_data = {}
+                if "entities" in result:
+                    extracted_data.update(result["entities"])
+                if "line_items" in result:
+                    extracted_data["line_items"] = result["line_items"]
                 return {
-                    "data": data,
+                    "data": extracted_data,
                     "validation_errors": []
                 }
             
-            # If we can't find structured data, raise error
+            # Fallback
+            if "result" in data:
+                return {"data": data["result"], "validation_errors": []}
+            
             raise ExtractError(f"Unexpected response format: {data}")
 
         except httpx.TimeoutException:

@@ -139,11 +139,12 @@ def _parse_pages(client, pdf_doc, pages: List[int], cache_dir: Path) -> str:
     return "\n\n".join(texts)
 
 
-def _extract_all(client, ocr_text: str, doc_hash: str, cache_dir: Path) -> dict:
+def _extract_all(client, img_paths: List[Path], doc_hash: str, cache_dir: Path) -> dict:
     """
-    Run HyperAPI extract endpoint on OCR text.
+    Run HyperAPI extract endpoint on document images.
     
-    The extract endpoint takes OCR text and returns structured data.
+    The extract endpoint takes a document file and returns structured data.
+    For multi-page documents, we use the first page image.
     
     Returns merged dict with all extracted fields.
     """
@@ -156,8 +157,14 @@ def _extract_all(client, ocr_text: str, doc_hash: str, cache_dir: Path) -> dict:
         except Exception as e:
             log.warning(f"  Extract cache read failed for {doc_hash[:8]}: {e}")
     
-    # Call extract API with OCR text
-    result = _call_with_retry(client.extract, ocr_text, label=f"extract {doc_hash[:8]}")
+    # Use the first page image for extraction
+    if not img_paths:
+        return {}
+    
+    first_img = img_paths[0]
+    
+    # Call extract API with the image file
+    result = _call_with_retry(client.extract, str(first_img), label=f"extract {doc_hash[:8]}")
     
     if result:
         # The new SDK returns {"data": {...}, "validation_errors": [...]}
@@ -189,13 +196,20 @@ def _parse_one(client, pdf_path: Path, seg: DocSegment, cache_dir: Path) -> DocS
             # Open PDF (thread-safe)
             pdf_doc = fitz.open(str(pdf_path))
             
+            # Render pages and collect image paths
+            img_paths = []
+            for page_no in seg.pages:
+                img_path = _render_page(pdf_doc, page_no)
+                if img_path:
+                    img_paths.append(img_path)
+            
             # OCR all pages
             seg.raw_text = _parse_pages(client, pdf_doc, seg.pages, cache_dir)
             
-            # Structured extraction using OCR text
+            # Structured extraction using first page image
             key_str  = f"{seg.doc_id}|{seg.pages}"
             doc_hash = hashlib.md5(key_str.encode()).hexdigest()
-            seg.parsed = _extract_all(client, seg.raw_text, doc_hash, cache_dir)
+            seg.parsed = _extract_all(client, img_paths, doc_hash, cache_dir)
             
             # Patch missing doc_id from structured data
             if not seg.doc_id:

@@ -93,33 +93,39 @@ def extract_vendor_master(client, pdf_path: Path, cache_dir: Path) -> dict:
     for page_no in [3, 4]:
         img_path = _page_to_image(pdf_path, page_no)
 
-        # Step 1 — OCR
-        ocr_result = client.parse(str(img_path))
-        ocr_text = ocr_result["ocr"]
+        # Call extract API directly with the image
+        extracted = client.extract(str(img_path))
 
-        # Step 2 — Structured extraction
-        # We pass the extraction prompt inside the OCR text as a directive
-        extraction_input = _EXTRACTION_PROMPT + "\n\nDocument text:\n" + ocr_text
-        extracted = client.extract(extraction_input)
+        # `data` contains the extracted fields
+        data = extracted.get("data", {})
+        
+        # Try to extract vendor records from various possible structures
+        vendors_list = []
+        if "vendors" in data:
+            vendors_list = data["vendors"] if isinstance(data["vendors"], list) else [data["vendors"]]
+        elif "line_items" in data:
+            # Sometimes vendors are in line_items
+            vendors_list = data["line_items"]
+        elif "entities" in data:
+            # Or in entities
+            vendors_list = [data["entities"]]
+        else:
+            # Treat the whole data as a single vendor
+            vendors_list = [data]
 
-        # `data` may be a list or dict depending on SDK version
-        data = extracted.get("data", [])
-        if isinstance(data, dict):
-            data = data.get("vendors", []) or data.get("line_items", []) or [data]
-
-        for vendor in data:
+        for vendor in vendors_list:
             if not isinstance(vendor, dict):
                 continue
             vid   = str(vendor.get("vendor_id") or vendor.get("name", "UNKNOWN"))
             gstin = (vendor.get("gstin") or "").strip().upper()
             state_code = gstin[:2] if len(gstin) >= 2 else ""
             vendor_master[vid] = {
-                "name":         (vendor.get("name") or "").strip(),
+                "name":         (vendor.get("name") or vendor.get("vendor_name") or "").strip(),
                 "gstin":        gstin,
                 "state_code":   state_code,
                 "state":        STATE_CODES.get(state_code, vendor.get("state", "")),
                 "ifsc":         (vendor.get("ifsc") or "").strip().upper(),
-                "bank_account": (vendor.get("bank_account") or "").strip(),
+                "bank_account": (vendor.get("bank_account") or vendor.get("account_number") or "").strip(),
                 "address":      (vendor.get("address") or "").strip(),
                 "source_page":  page_no,
             }
