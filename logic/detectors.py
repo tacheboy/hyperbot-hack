@@ -27,24 +27,58 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 from typing import List, Dict, Optional, Any
 
-from stages.splitter import DocSegment
+from logic.splitter import DocSegment
 
 log = logging.getLogger(__name__)
 
 # ── GST: HSN/SAC → correct tax rate ──────────────────────────────────────────
-# Simplified subset (add more as you discover them in the dataset)
+# Expanded for common HSN/SAC codes in gauntlet.pdf
 HSN_TAX_RATE = {
-    # Freight / transport services
-    "9965": 5, "9966": 5,
-    # IT services / consulting
-    "9983": 18, "9984": 18, "9985": 18,
-    # Manpower supply
+    # Freight / transport services (5%)
+    "9965": 5, "9966": 5, "9967": 5,
+    
+    # IT services / consulting (18%)
+    "9983": 18, "9984": 18, "9985": 18, "9986": 18,
+    
+    # Manpower supply (18%)
     "9985": 18,
-    # Construction
-    "9954": 12,
-    # Financial / insurance
-    "9971": 18,
-    # General goods (catch-all): 18
+    
+    # Construction (12%)
+    "9954": 12, "9955": 12,
+    
+    # Financial / insurance (18%)
+    "9971": 18, "9972": 18,
+    
+    # Professional services (18%)
+    "9982": 18, "9991": 18, "9992": 18, "9993": 18,
+    
+    # Maintenance & repair (18%)
+    "9987": 18, "9988": 18,
+    
+    # Rental services (18%)
+    "9973": 18, "9974": 18,
+    
+    # Telecommunications (18%)
+    "9964": 18,
+    
+    # Goods - High rate (28%)
+    "8703": 28,  # Motor vehicles
+    "8471": 28,  # Computers
+    
+    # Goods - Standard rate (18%)
+    "8517": 18,  # Telecom equipment
+    "8528": 18,  # Monitors/projectors
+    "8443": 18,  # Printers
+    
+    # Goods - Reduced rate (12%)
+    "3926": 12,  # Plastic articles
+    "4819": 12,  # Cartons/boxes
+    
+    # Goods - Low rate (5%)
+    "1001": 5,   # Wheat
+    "1006": 5,   # Rice
+    "0901": 5,   # Coffee
+    "0902": 5,   # Tea
 }
 
 
