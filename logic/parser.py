@@ -159,8 +159,14 @@ def _extract_all(client, ocr_text: str, doc_hash: str, cache_dir: Path) -> dict:
     # Call extract API with OCR text
     result = _call_with_retry(client.extract, ocr_text, label=f"extract {doc_hash[:8]}")
     
-    if result and "data" in result:
-        parsed = result["data"]
+    if result:
+        # The new SDK returns {"data": {...}, "validation_errors": [...]}
+        parsed = result.get("data", {})
+        validation_errors = result.get("validation_errors", [])
+        
+        # Merge validation errors into the parsed data
+        if validation_errors:
+            parsed["validation_errors"] = validation_errors
         
         # Write to cache
         try:

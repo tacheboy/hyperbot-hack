@@ -25,3 +25,13 @@ class ParseError(HyperAPIError):
 class ExtractError(HyperAPIError):
     """Raised when field extraction fails."""
     pass
+
+
+class ClassifyError(HyperAPIError):
+    """Raised when document classification fails."""
+    pass
+
+
+class SplitError(HyperAPIError):
+    """Raised when document splitting fails."""
+    pass

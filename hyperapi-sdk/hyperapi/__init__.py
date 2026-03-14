@@ -4,7 +4,22 @@ Financial document processing APIs that scale well.
 """
 
 from .client import HyperAPIClient
-from .exceptions import HyperAPIError, AuthenticationError, ParseError, ExtractError
+from .exceptions import (
+    HyperAPIError, 
+    AuthenticationError, 
+    ParseError, 
+    ExtractError,
+    ClassifyError,
+    SplitError
+)
 
 __version__ = "0.1.0"
-__all__ = ["HyperAPIClient", "HyperAPIError", "AuthenticationError", "ParseError", "ExtractError"]
+__all__ = [
+    "HyperAPIClient", 
+    "HyperAPIError", 
+    "AuthenticationError", 
+    "ParseError", 
+    "ExtractError",
+    "ClassifyError",
+    "SplitError"
+]

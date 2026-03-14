@@ -48,7 +48,21 @@ export CACHE_DIR=".cache"            # cache directory
 export OUTPUT_FILE="findings.json"   # output path
 ```
 
-### 3. Run
+### 3. Test API Connection
+
+Before running the full pipeline, test your API connection:
+
+```bash
+python test_api.py
+```
+
+This will test all 4 API endpoints:
+- `/api/v1/parse` - Extract text from documents
+- `/api/v1/extract` - Extract structured data fields
+- `/api/v1/classify` - Categorize document types
+- `/api/v1/split` - Split multi-page documents
+
+### 4. Run Pipeline
 
 ```bash
 python -m logic.pipeline
@@ -60,6 +74,26 @@ python logic/pipeline.py
 ```
 
 ## Features
+
+### HyperAPI Endpoints
+
+The pipeline uses 4 main HyperAPI endpoints:
+
+1. **POST /api/v1/parse** - Extract text from documents including PDFs and images. Optimized for financial documents, invoices, and forms.
+   - Input: Document file (PNG, JPG, PDF)
+   - Output: OCR text
+
+2. **POST /api/v1/extract** - Extract structured data fields from documents using vision-language models for high accuracy.
+   - Input: OCR text
+   - Output: Structured fields (invoice_number, vendor_name, line_items, etc.) + validation_errors
+
+3. **POST /api/v1/classify** - Categorize document types automatically — invoices, contracts, receipts, IDs, and more.
+   - Input: Document file
+   - Output: document_type + confidence score
+
+4. **POST /api/v1/split** - Split multi-page documents into individual pages or logical sections for downstream processing.
+   - Input: Multi-page PDF
+   - Output: Pages and sections information
 
 ### Robust Error Handling
 - Exponential backoff retry (2s, 5s, 15s, 30s)
@@ -147,6 +181,22 @@ Log levels:
 
 ## Troubleshooting
 
+### Quick Setup Validation
+
+Run the validation script to check your setup:
+
+```bash
+./validate_setup.sh
+```
+
+This checks:
+- Python version (>= 3.8)
+- Required files exist
+- Environment variables are set
+- Python packages are installed
+- PDF file is correct
+- Cache directory status
+
 ### API Connection Errors
 - Check `HYPERAPI_KEY` and `HYPERAPI_URL` environment variables
 - Verify network connectivity
@@ -176,14 +226,37 @@ Log levels:
 │   ├── detectors.py       # Stage 4 (all 20 detectors)
 │   └── output.py          # Stage 5
 ├── hyperapi-sdk/          # HyperAPI Python SDK
+│   ├── hyperapi/
+│   │   ├── __init__.py
+│   │   ├── client.py      # API client with all 4 endpoints
+│   │   └── exceptions.py  # Custom exceptions
+│   └── pyproject.toml
+├── test_api.py            # API endpoint testing script
+├── validate_setup.sh      # Setup validation script
 ├── requirements.txt
+├── README.md              # This file
+├── QUICKSTART.md          # Step-by-step guide
+├── CHANGES.md             # API endpoint corrections
 ├── .gitignore
-└── README.md
+└── gauntlet.pdf           # 1,000-page dataset
+
 ```
+
+### Documentation
+
+- **README.md** (this file) - Overview and reference
+- **QUICKSTART.md** - Step-by-step setup and usage guide
+- **CHANGES.md** - Detailed API endpoint corrections and migration guide
 
 ### Running Tests
 ```bash
-# Run diagnostics
+# Validate setup
+./validate_setup.sh
+
+# Test API endpoints
+python test_api.py
+
+# Run full pipeline
 python -m logic.pipeline
 
 # Check for lint errors
