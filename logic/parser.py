@@ -4,16 +4,12 @@ Stage 3 — Parsing with HyperAPI (parse + extract)
 For each DocSegment:
   1. Render every page to a PNG (via PyMuPDF)
   2. Call client.parse()   → OCR text  (cached per page)
-  3. Call client.extract() → structured dict (cached per doc)
-  4. Call client.extract_lineitems() → validated line items (invoices only)
-  5. Call client.extract_entities() → vendor/GSTIN/IFSC/dates
-  6. Merge all results and attach to segment.parsed
+  3. Call client.extract() → structured dict with entities + line_items (cached per doc)
+  4. Merge all results and attach to segment.parsed
 
 Cache layout:
   .cache/ocr_<page_no>.json              raw OCR text per page
-  .cache/extract_<doc_id_hash>.json      structured extraction per doc
-  .cache/lineitems_<doc_id_hash>.json    line items extraction (invoices)
-  .cache/entities_<doc_id_hash>.json     entities extraction
+  .cache/extract_<doc_id_hash>.json      structured extraction per doc (entities + line_items)
 """
 
 import json
@@ -143,83 +139,38 @@ def _parse_pages(client, pdf_doc, pages: List[int], cache_dir: Path) -> str:
     return "\n\n".join(texts)
 
 
-def _extract_all(client, ocr_text: str, doc_type: str, doc_hash: str, cache_dir: Path) -> dict:
+def _extract_all(client, ocr_text: str, doc_hash: str, cache_dir: Path) -> dict:
     """
-    Run all HyperAPI extraction endpoints and merge results.
+    Run HyperAPI extract endpoint on OCR text.
     
-    For invoices:
-      - client.extract() → base structured data
-      - client.extract_entities() → vendor/GSTIN/IFSC/dates
-      - client.extract_lineitems() → validated line items
+    The extract endpoint takes OCR text and returns structured data.
     
-    For other docs:
-      - client.extract() → base structured data
-      - client.extract_entities() → vendor/dates/employee_id/balances
-    
-    Merge order: extract → entities → lineitems (later overwrites earlier)
+    Returns merged dict with all extracted fields.
     """
-    parsed = {}
-    
-    # 1. Base extraction
     extract_cache = _extract_cache_path(cache_dir, doc_hash, "extract")
+    
+    # Check cache first
     if extract_cache.exists():
         try:
-            parsed.update(json.loads(extract_cache.read_text()))
+            return json.loads(extract_cache.read_text())
         except Exception as e:
             log.warning(f"  Extract cache read failed for {doc_hash[:8]}: {e}")
-    else:
-        result = _call_with_retry(client.extract, ocr_text, label=f"extract {doc_hash[:8]}")
-        if result and "data" in result:
-            data = result["data"]
-            parsed.update(data)
-            try:
-                extract_cache.write_text(json.dumps(data))
-            except Exception as e:
-                log.warning(f"  Extract cache write failed for {doc_hash[:8]}: {e}")
     
-    # 2. Entity extraction
-    entities_cache = _extract_cache_path(cache_dir, doc_hash, "entities")
-    if entities_cache.exists():
+    # Call extract API with OCR text
+    result = _call_with_retry(client.extract, ocr_text, label=f"extract {doc_hash[:8]}")
+    
+    if result and "data" in result:
+        parsed = result["data"]
+        
+        # Write to cache
         try:
-            parsed.update(json.loads(entities_cache.read_text()))
+            extract_cache.write_text(json.dumps(parsed))
         except Exception as e:
-            log.warning(f"  Entities cache read failed for {doc_hash[:8]}: {e}")
-    else:
-        result = _call_with_retry(client.extract_entities, ocr_text, label=f"entities {doc_hash[:8]}")
-        if result and "data" in result:
-            data = result["data"]
-            parsed.update(data)
-            try:
-                entities_cache.write_text(json.dumps(data))
-            except Exception as e:
-                log.warning(f"  Entities cache write failed for {doc_hash[:8]}: {e}")
+            log.warning(f"  Extract cache write failed for {doc_hash[:8]}: {e}")
+        
+        return parsed
     
-    # 3. Line items extraction (invoices only)
-    if doc_type == "invoice":
-        lineitems_cache = _extract_cache_path(cache_dir, doc_hash, "lineitems")
-        if lineitems_cache.exists():
-            try:
-                li_data = json.loads(lineitems_cache.read_text())
-                if "line_items" in li_data:
-                    parsed["line_items"] = li_data["line_items"]
-                if "validation_errors" in li_data:
-                    parsed["validation_errors"] = li_data.get("validation_errors", [])
-            except Exception as e:
-                log.warning(f"  Lineitems cache read failed for {doc_hash[:8]}: {e}")
-        else:
-            result = _call_with_retry(client.extract_lineitems, ocr_text, label=f"lineitems {doc_hash[:8]}")
-            if result and "data" in result:
-                data = result["data"]
-                if "line_items" in data:
-                    parsed["line_items"] = data["line_items"]
-                if "validation_errors" in data:
-                    parsed["validation_errors"] = data.get("validation_errors", [])
-                try:
-                    lineitems_cache.write_text(json.dumps(data))
-                except Exception as e:
-                    log.warning(f"  Lineitems cache write failed for {doc_hash[:8]}: {e}")
-    
-    return parsed
+    return {}
 
 
 def _parse_one(client, pdf_path: Path, seg: DocSegment, cache_dir: Path) -> DocSegment:
@@ -235,10 +186,10 @@ def _parse_one(client, pdf_path: Path, seg: DocSegment, cache_dir: Path) -> DocS
             # OCR all pages
             seg.raw_text = _parse_pages(client, pdf_doc, seg.pages, cache_dir)
             
-            # Structured extraction
+            # Structured extraction using OCR text
             key_str  = f"{seg.doc_id}|{seg.pages}"
             doc_hash = hashlib.md5(key_str.encode()).hexdigest()
-            seg.parsed = _extract_all(client, seg.raw_text, seg.doc_type, doc_hash, cache_dir)
+            seg.parsed = _extract_all(client, seg.raw_text, doc_hash, cache_dir)
             
             # Patch missing doc_id from structured data
             if not seg.doc_id:
