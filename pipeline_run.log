@@ -1,0 +1,45 @@
+2026-03-14 17:54:18,663  INFO      === Financial Gauntlet Pipeline starting ===
+2026-03-14 17:54:18,664  INFO      PDF      : gauntlet.pdf
+2026-03-14 17:54:18,664  INFO      Cache    : .cache
+2026-03-14 17:54:18,664  INFO      Output   : findings.json
+2026-03-14 17:54:18,664  INFO      Team ID  : your_team_name
+2026-03-14 17:54:18,664  INFO      Initializing OCR client…
+⚠️  Using LOCAL OCR (Tesseract) - API not accessible
+2026-03-14 17:54:18,664  INFO        Using LOCAL OCR (Tesseract)
+2026-03-14 17:54:18,664  INFO      Stage 1 — Vendor Master
+2026-03-14 17:54:21,884  INFO        Extracted 1 vendors from pages 3–4
+2026-03-14 17:54:21,884  INFO        Loaded 1 vendors
+2026-03-14 17:54:21,884  WARNING     WARNING: Only 1 vendors extracted (expected ≥30)
+2026-03-14 17:54:21,884  INFO        Stage 1 completed in 3.2s
+2026-03-14 17:54:21,884  INFO      Stage 2 — Document splitting
+2026-03-14 17:54:25,201  INFO        Segment breakdown: {'invoice': 322, 'po': 25, 'bank_statement': 6}
+2026-03-14 17:54:25,201  INFO        Found 353 document segments
+2026-03-14 17:54:25,201  INFO        Stage 2 completed in 3.3s
+2026-03-14 17:54:25,201  INFO      Stage 3 — Parsing documents
+2026-03-14 17:54:25,201  INFO        Parsing 353 segments with 8 concurrent workers…
+2026-03-14 17:56:14,162  INFO        Progress: 50/353 segments parsed
+2026-03-14 17:57:41,279  INFO        Progress: 100/353 segments parsed
+2026-03-14 17:58:58,579  INFO        Progress: 150/353 segments parsed
+2026-03-14 17:59:56,914  INFO        Progress: 200/353 segments parsed
+2026-03-14 18:00:57,785  INFO        Progress: 250/353 segments parsed
+2026-03-14 18:02:27,237  INFO        Progress: 300/353 segments parsed
+2026-03-14 18:04:13,703  INFO        Progress: 350/353 segments parsed
+2026-03-14 18:05:11,396  INFO        Completed parsing 353 segments
+2026-03-14 18:05:11,397  INFO        Parsed 353 documents
+2026-03-14 18:05:11,397  INFO        Stage 3 completed in 646.2s
+2026-03-14 18:05:11,397  INFO      Stage 4 — Needle detection
+2026-03-14 18:05:11,397  INFO        Invoices=322 POs=25 BankStmts=6 ExpReps=0 CN=0 DN=0
+2026-03-14 18:05:11,397  INFO        Running EASY detectors…
+2026-03-14 18:05:11,405  INFO        Running MEDIUM detectors…
+2026-03-14 18:05:11,415  INFO        Running EVIL detectors…
+2026-03-14 18:05:11,424  INFO        Total raw findings: 613
+2026-03-14 18:05:11,657  INFO        After deduplication: 573
+2026-03-14 18:05:11,657  INFO        Final findings count: 573
+2026-03-14 18:05:11,657  INFO        Stage 4 completed in 0.3s
+2026-03-14 18:05:11,657  INFO      Stage 5 — Writing output
+2026-03-14 18:05:11,675  INFO        Valid findings: 573, skipped: 0
+2026-03-14 18:05:11,687  INFO        Written 573 findings → findings.json
+2026-03-14 18:05:11,688  INFO        Stage 5 completed in 0.0s
+2026-03-14 18:05:11,688  INFO      === Pipeline completed successfully ===
+2026-03-14 18:05:11,688  INFO      Total execution time: 653.0s (10.9 minutes)
+2026-03-14 18:05:11,688  INFO      Final output: 573 findings in findings.json

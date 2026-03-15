@@ -15,9 +15,9 @@ from hyperapi.exceptions import HyperAPIError
 
 
 def test_parse():
-    """Test the /api/v1/parse endpoint"""
+    """Test the /v1/parse endpoint"""
     print("\n" + "="*60)
-    print("Testing /api/v1/parse endpoint")
+    print("Testing /v1/parse endpoint")
     print("="*60)
     
     client = HyperAPIClient()
@@ -57,38 +57,21 @@ def test_parse():
 
 
 def test_extract():
-    """Test the /api/v1/extract endpoint"""
+    """Test the /v1/extract endpoint"""
     print("\n" + "="*60)
-    print("Testing /api/v1/extract endpoint")
+    print("Testing /v1/extract endpoint")
     print("="*60)
     
     client = HyperAPIClient()
     
-    # Sample OCR text from an invoice
-    sample_ocr = """
-    TAX INVOICE
-    
-    Invoice No: INV-2025-0001
-    Date: 15/01/2025
-    
-    Vendor: Acme Supplies Pvt Ltd
-    GSTIN: 29AABCA1234F1Z5
-    
-    Bill To:
-    ABC Corporation
-    
-    Description          Qty    Rate    Amount
-    Office Supplies      10     100.00  1000.00
-    Stationery Items     5      50.00   250.00
-    
-    Subtotal:                           1250.00
-    CGST @ 9%:                          112.50
-    SGST @ 9%:                          112.50
-    Total:                              1475.00
-    """
+    # Use the test image we created
+    test_img = Path("/tmp/test_page_5.png")
+    if not test_img.exists():
+        print("❌ Test image not found (run test_parse first)")
+        return False
     
     try:
-        result = client.extract(sample_ocr)
+        result = client.extract(str(test_img))
         print(f"✓ Extract successful")
         print(f"  Extracted data keys: {list(result.get('data', {}).keys())}")
         
@@ -97,16 +80,10 @@ def test_extract():
             print(f"  Invoice Number: {data['invoice_number']}")
         if 'vendor_name' in data:
             print(f"  Vendor Name: {data['vendor_name']}")
-        if 'total' in data:
-            print(f"  Total: {data['total']}")
+        if 'total_amount' in data or 'total' in data:
+            print(f"  Total: {data.get('total_amount') or data.get('total')}")
         if 'line_items' in data:
             print(f"  Line Items: {len(data['line_items'])} items")
-        
-        validation_errors = result.get('validation_errors', [])
-        if validation_errors:
-            print(f"  Validation Errors: {len(validation_errors)}")
-            for err in validation_errors[:3]:
-                print(f"    - {err}")
         
         return True
     except HyperAPIError as e:
@@ -118,9 +95,9 @@ def test_extract():
 
 
 def test_classify():
-    """Test the /api/v1/classify endpoint"""
+    """Test the /v1/classify endpoint"""
     print("\n" + "="*60)
-    print("Testing /api/v1/classify endpoint")
+    print("Testing /v1/classify endpoint")
     print("="*60)
     
     client = HyperAPIClient()
@@ -145,9 +122,9 @@ def test_classify():
 
 
 def test_split():
-    """Test the /api/v1/split endpoint"""
+    """Test the /v1/split endpoint"""
     print("\n" + "="*60)
-    print("Testing /api/v1/split endpoint")
+    print("Testing /v1/split endpoint")
     print("="*60)
     
     client = HyperAPIClient()
@@ -176,8 +153,10 @@ def test_split():
     try:
         result = client.split(str(test_pdf_path))
         print(f"✓ Split successful")
-        print(f"  Pages: {len(result.get('pages', []))}")
-        print(f"  Sections: {len(result.get('sections', []))}")
+        segments = result.get('segments', [])
+        print(f"  Segments: {len(segments)}")
+        for seg in segments[:3]:
+            print(f"    - Document {seg.get('document_index')}: pages {seg.get('start_page')}-{seg.get('end_page')} ({seg.get('type', 'unknown')})")
         return True
     except HyperAPIError as e:
         print(f"❌ Split failed: {e.message} (status: {e.status_code})")

@@ -4,6 +4,7 @@ Financial document processing APIs that scale well.
 """
 
 from .client import HyperAPIClient
+from .local_client import LocalOCRClient
 from .exceptions import (
     HyperAPIError, 
     AuthenticationError, 
@@ -15,7 +16,8 @@ from .exceptions import (
 
 __version__ = "0.1.0"
 __all__ = [
-    "HyperAPIClient", 
+    "HyperAPIClient",
+    "LocalOCRClient",
     "HyperAPIError", 
     "AuthenticationError", 
     "ParseError", 

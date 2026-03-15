@@ -56,6 +56,13 @@ class HyperAPIClient:
             or os.environ.get("HYPERAPI_URL")
             or "https://api.hyperapi.dev"
         )
+        
+        # Check if base URL is valid
+        if self.base_url == "local" or not self.base_url.startswith("http"):
+            raise AuthenticationError(
+                "Invalid base URL. Use LocalOCRClient for local processing."
+            )
+        
         self.timeout = timeout
         self._client = httpx.Client(timeout=timeout)
 
@@ -103,9 +110,11 @@ class HyperAPIClient:
         try:
             with open(image_path, "rb") as f:
                 files = {"file": (image_path.name, f, content_type)}
+                data = {"document_key": str(image_path.name)}
                 response = self._client.post(
                     f"{self.base_url}/v1/parse",
                     files=files,
+                    data=data,
                     headers=self._get_headers()
                 )
 
@@ -179,9 +188,11 @@ class HyperAPIClient:
         try:
             with open(image_path, "rb") as f:
                 files = {"file": (image_path.name, f, content_type)}
+                data = {"document_key": str(image_path.name)}
                 response = self._client.post(
                     f"{self.base_url}/v1/classify",
                     files=files,
+                    data=data,
                     headers=self._get_headers()
                 )
 
@@ -245,9 +256,11 @@ class HyperAPIClient:
         try:
             with open(pdf_path, "rb") as f:
                 files = {"file": (pdf_path.name, f, "application/pdf")}
+                data = {"document_key": str(pdf_path.name)}
                 response = self._client.post(
                     f"{self.base_url}/v1/split",
                     files=files,
+                    data=data,
                     headers=self._get_headers(),
                     timeout=300.0  # Splitting can take time for large PDFs
                 )
@@ -341,9 +354,11 @@ class HyperAPIClient:
         try:
             with open(file_path, "rb") as f:
                 files = {"file": (file_path.name, f, content_type)}
+                data = {"document_key": str(file_path.name)}
                 response = self._client.post(
                     f"{self.base_url}/v1/extract",
                     files=files,
+                    data=data,
                     headers=self._get_headers(),
                     timeout=600.0  # LLM calls can take longer
                 )
